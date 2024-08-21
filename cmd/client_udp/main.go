@@ -33,6 +33,4 @@ func main() {
 		log.Fatalf("Error reading body: %v", err)
 	}
 	log.Printf("Body: %s", string(b))
-	resp.
-
 }
