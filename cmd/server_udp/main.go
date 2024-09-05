@@ -23,5 +23,5 @@ func main() {
 	r := mux.NewRouter()
 	r.Handle("/a", mux.HandlerFunc(handleA))
 
-	log.Fatal(coap.ListenAndServe("udp", ":5688", r))
+	log.Fatal(coap.ListenAndServe("udp", "192.168.100.142:5688", r))
 }

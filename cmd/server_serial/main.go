@@ -12,6 +12,38 @@ import (
 	"github.com/tarm/serial"
 )
 
+type HandlerFunc func(conn *serial.Port, req *pool.Message)
+
+type Router struct {
+	routes map[string]HandlerFunc
+}
+
+func NewRouter() *Router {
+	return &Router{
+		routes: make(map[string]HandlerFunc),
+	}
+}
+
+func (r *Router) Handle(path string, handler HandlerFunc) {
+	r.routes[path] = handler
+}
+
+func (r *Router) ServeCOAP(conn *serial.Port, req *pool.Message) {
+	path, err := req.Path()
+	if err != nil {
+		log.Printf("Error getting path: %v", err)
+		return
+	}
+
+	handler, ok := r.routes[path]
+	if !ok {
+		log.Printf("No handler for path: %v", path)
+		return
+	}
+
+	handler(conn, req)
+}
+
 func main() {
 	// Set up the serial port
 	c := &serial.Config{Name: "/dev/ttyGS0", Baud: 9600}
@@ -20,6 +52,9 @@ func main() {
 		log.Fatalf("Error opening serial port: %v", err)
 	}
 	defer serialConn.Close()
+
+	router := NewRouter()
+	router.Handle("/a", handleRequest)
 
 	for {
 		// Buffer to read incoming data
@@ -41,13 +76,7 @@ func main() {
 			log.Fatal("Failed to unmarshal message, len =0")
 		}
 
-		// Check if the path matches "/a"
-		if path, err := req.Path(); err == nil && path == "/a" {
-			// Handle the request here
-			handleRequest(serialConn, req)
-		} else {
-			log.Printf("Received request for unknown path: %v", path)
-		}
+		router.ServeCOAP(serialConn, req)
 	}
 }
 

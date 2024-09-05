@@ -9,8 +9,11 @@ import (
 	"github.com/plgd-dev/go-coap/v3/udp"
 )
 
+var SERVER_ADDR = "192.168.100.142:5688"
+
 func main() {
-	co, err := udp.Dial("localhost:5688")
+	co, err := udp.Dial(SERVER_ADDR)
+	// co, err := udp.Dial("localhost:5688")
 	if err != nil {
 		log.Fatalf("Error dialing: %v", err)
 	}
