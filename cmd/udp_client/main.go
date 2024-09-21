@@ -3,14 +3,19 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"log"
 	"os"
 	"time"
 
 	piondtls "github.com/pion/dtls/v2"
 	"github.com/plgd-dev/go-coap/v3/dtls"
-	"github.com/plgd-dev/go-coap/v3/examples/dtls/pki"
 )
+
+var CERT_NAME = "certs/client_cert.pem"
+var KEY_NAME = "certs/client_key.pem"
+
+var ROOT_CA = "certs/root_ca_cert.pem"
 
 func main() {
 	config, err := createClientConfig(context.Background())
@@ -37,40 +42,21 @@ func main() {
 }
 
 func createClientConfig(ctx context.Context) (*piondtls.Config, error) {
-	// root cert
-	// ca, rootBytes, _, caPriv, err := pki.GenerateCA()
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// client cert
-	// certBytes, keyBytes, err := pki.GenerateCertificate(ca, caPriv, "client@test.com")
-	// if err != nil {
-	// 	return nil, err
-	// }
-	certBytes, err := os.ReadFile("certs/client_cert.pem")
+	certificate, err := tls.LoadX509KeyPair(CERT_NAME, KEY_NAME)
 	if err != nil {
-		log.Fatalf("Failed to read client cert: %v", err)
+		log.Fatalf("Error loading server key pair: %v", err)
 	}
-	keyBytes, err := os.ReadFile("certs/client_key.pem")
+	rootBytes, err := os.ReadFile(ROOT_CA)
 	if err != nil {
-		log.Fatalf("Failed to read client cert: %v", err)
+		log.Fatalf("Failed to read CA cert: %v", err)
 	}
-	rootBytes, err := os.ReadFile("certs/root_ca_cert.pem")
-	if err != nil {
-		log.Fatalf("Failed to read client cert: %v", err)
-	}
-	certificate, err := pki.LoadKeyAndCertificate(keyBytes, certBytes)
-	if err != nil {
-		return nil, err
-	}
-	// cert pool
-	certPool, err := pki.LoadCertPool(rootBytes)
-	if err != nil {
-		return nil, err
+	certPool := x509.NewCertPool()
+	if !certPool.AppendCertsFromPEM(rootBytes) {
+		log.Fatalf("Failed to append CA certificate to pool")
 	}
 
 	return &piondtls.Config{
-		Certificates:         []tls.Certificate{*certificate},
+		Certificates:         []tls.Certificate{certificate},
 		ExtendedMasterSecret: piondtls.RequireExtendedMasterSecret,
 		RootCAs:              certPool,
 		InsecureSkipVerify:   false,

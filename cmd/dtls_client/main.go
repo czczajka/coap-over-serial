@@ -2,16 +2,15 @@ package main
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
 	"log"
-	"math/big"
 	"net"
+	"os"
 	"time"
 
 	"github.com/pion/dtls/v2"
+	"github.com/pion/logging"
 	"github.com/plgd-dev/go-coap/v3/message"
 	"github.com/plgd-dev/go-coap/v3/message/codes"
 	"github.com/plgd-dev/go-coap/v3/message/pool"
@@ -20,6 +19,10 @@ import (
 
 	"github.com/czczajka/enrollment_app/common"
 )
+
+var CERT_NAME = "certs/client_cert.pem"
+var KEY_NAME = "certs/client_key.pem"
+var ROOT_CA = "certs/root_ca_cert.pem"
 
 func main() {
 	log.Println("Starting CoAP client over dtls tutorial")
@@ -34,28 +37,48 @@ func main() {
 
 	log.Println("Serial port opened successfully")
 
+	// flushSerialBuffer(serialConn)
+
+	certPool := x509.NewCertPool()
+	caCert, err := os.ReadFile("certs/root_ca_cert.pem")
+	if err != nil {
+		log.Fatalf("Failed to read CA cert: %v", err)
+	}
+	clientCert, err := tls.LoadX509KeyPair("certs/client_cert.pem", "certs/client_key.pem")
+	if err != nil {
+		log.Fatalf("Error loading client key pair: %v", err)
+	}
+	if !certPool.AppendCertsFromPEM(caCert) {
+		log.Fatalf("Failed to append CA certificate to pool")
+	}
+
+	loggerFactory := logging.NewDefaultLoggerFactory()
+	logger := loggerFactory.NewLogger("dtls")
+
 	// DTLS Configuration
 	config := &dtls.Config{
-		Certificates:         []tls.Certificate{generateSelfSignedCert()},
+		Certificates:         []tls.Certificate{clientCert},
 		ExtendedMasterSecret: dtls.RequireExtendedMasterSecret,
-		ClientAuth:           dtls.NoClientCert,
 		FlightInterval:       time.Second * 5, // Increase retransmission interval
 		ConnectContextMaker: func() (context.Context, func()) {
 			return context.WithTimeout(context.Background(), time.Minute*1)
 		},
 		// InsecureSkipVerify: true, // For testing purposes; disable certificate verification.
-		MTU: common.MTU,
+		RootCAs:       certPool,
+		MTU:           common.MTU,
+		LoggerFactory: loggerFactory,
 	}
 
-	// Create a DTLS client using the custom SerialPacketConn
-	log.Println("Attempting to create DTLS client")
 	addr := &net.UDPAddr{IP: net.IPv4zero, Port: 0} // Dummy address
 	dtlsConn, err := dtls.Client(common.NewSerialPacketConn(serialConn), addr, config)
-	log.Println("DTLS client created")
 	if err != nil {
-		log.Fatalf("Error setting up DTLS client: %v", err)
+		logger.Errorf("Error setting up DTLS client: %v", err)
 	}
-	defer dtlsConn.Close()
+	defer func() {
+		if dtlsConn != nil {
+			dtlsConn.Close()
+		}
+	}()
 
 	log.Println("DTLS handshake completed successfully")
 
@@ -100,28 +123,35 @@ func main() {
 	log.Printf("Response Body: %s", string(body))
 }
 
-// generateSelfSignedCert generates a self-signed certificate for DTLS.
-func generateSelfSignedCert() tls.Certificate {
-	priv, err := rsa.GenerateKey(rand.Reader, 2048)
+func flushSerialBuffer(port *serial.Port) {
+	buf := make([]byte, 128)
+	for {
+		n, err := port.Read(buf)
+		if err != nil || n == 0 {
+			break // Stop when no more data is available
+		}
+		log.Printf("Flushed %d bytes", n) // Log how much was flushed
+	}
+}
+
+func createClientConfig(ctx context.Context) (*dtls.Config, error) {
+	certificate, err := tls.LoadX509KeyPair(CERT_NAME, KEY_NAME)
 	if err != nil {
-		log.Fatalf("failed to generate private key: %v", err)
+		log.Fatalf("Error loading server key pair: %v", err)
 	}
-
-	template := x509.Certificate{
-		SerialNumber: big.NewInt(1),
-		NotBefore:    time.Now(),
-		NotAfter:     time.Now().Add(time.Hour * 24),
-		KeyUsage:     x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
-		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
-	}
-
-	certDER, err := x509.CreateCertificate(rand.Reader, &template, &template, &priv.PublicKey, priv)
+	rootBytes, err := os.ReadFile(ROOT_CA)
 	if err != nil {
-		log.Fatalf("failed to create certificate: %v", err)
+		log.Fatalf("Failed to read CA cert: %v", err)
+	}
+	certPool := x509.NewCertPool()
+	if !certPool.AppendCertsFromPEM(rootBytes) {
+		log.Fatalf("Failed to append CA certificate to pool")
 	}
 
-	return tls.Certificate{
-		Certificate: [][]byte{certDER},
-		PrivateKey:  priv,
-	}
+	return &dtls.Config{
+		Certificates:         []tls.Certificate{certificate},
+		ExtendedMasterSecret: dtls.RequireExtendedMasterSecret,
+		RootCAs:              certPool,
+		InsecureSkipVerify:   false,
+	}, nil
 }
