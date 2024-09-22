@@ -14,7 +14,6 @@ import (
 
 var CERT_NAME = "certs/client_cert.pem"
 var KEY_NAME = "certs/client_key.pem"
-
 var ROOT_CA = "certs/root_ca_cert.pem"
 
 func main() {

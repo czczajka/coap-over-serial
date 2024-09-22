@@ -12,6 +12,8 @@ import (
 	"github.com/tarm/serial"
 )
 
+var SERIAL_PATH = "/dev/ttyGS0"
+
 type HandlerFunc func(conn *serial.Port, req *pool.Message)
 
 type Router struct {
@@ -46,7 +48,7 @@ func (r *Router) ServeCOAP(conn *serial.Port, req *pool.Message) {
 
 func main() {
 	// Set up the serial port
-	c := &serial.Config{Name: "/dev/ttyGS0", Baud: 9600}
+	c := &serial.Config{Name: SERIAL_PATH, Baud: 9600}
 	serialConn, err := serial.OpenPort(c)
 	if err != nil {
 		log.Fatalf("Error opening serial port: %v", err)

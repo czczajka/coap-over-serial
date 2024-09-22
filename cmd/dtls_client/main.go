@@ -18,6 +18,8 @@ import (
 	"github.com/czczajka/enrollment_app/common"
 )
 
+var SERIAL_PATH = "/dev/tty.usbmodem1201"
+
 var CERT_NAME = "certs/client_cert.pem"
 var KEY_NAME = "certs/client_key.pem"
 var ROOT_CA = "certs/root_ca_cert.pem"
@@ -31,7 +33,7 @@ func main() {
 	log.Println("Starting CoAP client over dtls tutorial")
 
 	// Set up the serial port connection
-	c := &serial.Config{Name: "/dev/tty.usbmodem1201", Baud: 115200} // Change '/dev/tty.usbmodem1201' to the correct serial port for your setup.
+	c := &serial.Config{Name: SERIAL_PATH, Baud: 115200} // Change '/dev/tty.usbmodem1201' to the correct serial port for your setup.
 	serialConn, err := serial.OpenPort(c)
 	if err != nil {
 		log.Fatalf("Error opening serial port: %v", err)

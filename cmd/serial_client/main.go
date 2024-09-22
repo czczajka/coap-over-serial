@@ -12,9 +12,11 @@ import (
 	"github.com/tarm/serial"
 )
 
+var SERIAL_PATH = "/dev/tty.usbmodem1201"
+
 func main() {
 	// Configure the serial port
-	c := &serial.Config{Name: "/dev/tty.usbmodem1201", Baud: 9600} // Adjust the port as needed
+	c := &serial.Config{Name: SERIAL_PATH, Baud: 9600} // Adjust the port as needed
 	s, err := serial.OpenPort(c)
 	if err != nil {
 		log.Fatal(err)

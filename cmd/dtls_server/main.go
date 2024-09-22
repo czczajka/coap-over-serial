@@ -18,6 +18,8 @@ import (
 	"github.com/tarm/serial"
 )
 
+var SERIAL_PATH = "/dev/ttyGS0"
+
 var CERT_NAME = "certs/server_cert.pem"
 var KEY_NAME = "certs/server_key.pem"
 var ROOT_CA = "certs/root_ca_cert.pem"
@@ -64,7 +66,7 @@ func main() {
 	log.Printf("Starting CoAP server over dtls tutorial\n")
 
 	// Set up the serial port
-	c := &serial.Config{Name: "/dev/ttyGS0", Baud: 115200}
+	c := &serial.Config{Name: SERIAL_PATH, Baud: 115200}
 	serialConn, err := serial.OpenPort(c)
 	if err != nil {
 		log.Fatalf("Error opening serial port: %v", err)
