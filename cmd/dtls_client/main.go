@@ -7,10 +7,8 @@ import (
 	"log"
 	"net"
 	"os"
-	"time"
 
 	"github.com/pion/dtls/v2"
-	"github.com/pion/logging"
 	"github.com/plgd-dev/go-coap/v3/message"
 	"github.com/plgd-dev/go-coap/v3/message/codes"
 	"github.com/plgd-dev/go-coap/v3/message/pool"
@@ -23,6 +21,11 @@ import (
 var CERT_NAME = "certs/client_cert.pem"
 var KEY_NAME = "certs/client_key.pem"
 var ROOT_CA = "certs/root_ca_cert.pem"
+
+// RSA certificates
+// var CERT_NAME = "certs/rsa/client.crt"
+// var KEY_NAME = "certs/rsa/client.key"
+// var ROOT_CA = "certs/rsa/myCA.crt"
 
 func main() {
 	log.Println("Starting CoAP client over dtls tutorial")
@@ -37,42 +40,16 @@ func main() {
 
 	log.Println("Serial port opened successfully")
 
-	// flushSerialBuffer(serialConn)
-
-	certPool := x509.NewCertPool()
-	caCert, err := os.ReadFile("certs/root_ca_cert.pem")
+	config, err := createClientConfig(context.Background())
 	if err != nil {
-		log.Fatalf("Failed to read CA cert: %v", err)
-	}
-	clientCert, err := tls.LoadX509KeyPair("certs/client_cert.pem", "certs/client_key.pem")
-	if err != nil {
-		log.Fatalf("Error loading client key pair: %v", err)
-	}
-	if !certPool.AppendCertsFromPEM(caCert) {
-		log.Fatalf("Failed to append CA certificate to pool")
-	}
-
-	loggerFactory := logging.NewDefaultLoggerFactory()
-	logger := loggerFactory.NewLogger("dtls")
-
-	// DTLS Configuration
-	config := &dtls.Config{
-		Certificates:         []tls.Certificate{clientCert},
-		ExtendedMasterSecret: dtls.RequireExtendedMasterSecret,
-		FlightInterval:       time.Second * 5, // Increase retransmission interval
-		ConnectContextMaker: func() (context.Context, func()) {
-			return context.WithTimeout(context.Background(), time.Minute*1)
-		},
-		// InsecureSkipVerify: true, // For testing purposes; disable certificate verification.
-		RootCAs:       certPool,
-		MTU:           common.MTU,
-		LoggerFactory: loggerFactory,
+		log.Fatalln(err)
+		return
 	}
 
 	addr := &net.UDPAddr{IP: net.IPv4zero, Port: 0} // Dummy address
 	dtlsConn, err := dtls.Client(common.NewSerialPacketConn(serialConn), addr, config)
 	if err != nil {
-		logger.Errorf("Error setting up DTLS client: %v", err)
+		log.Fatalf("Error setting up DTLS client: %v", err)
 	}
 	defer func() {
 		if dtlsConn != nil {
@@ -123,17 +100,6 @@ func main() {
 	log.Printf("Response Body: %s", string(body))
 }
 
-func flushSerialBuffer(port *serial.Port) {
-	buf := make([]byte, 128)
-	for {
-		n, err := port.Read(buf)
-		if err != nil || n == 0 {
-			break // Stop when no more data is available
-		}
-		log.Printf("Flushed %d bytes", n) // Log how much was flushed
-	}
-}
-
 func createClientConfig(ctx context.Context) (*dtls.Config, error) {
 	certificate, err := tls.LoadX509KeyPair(CERT_NAME, KEY_NAME)
 	if err != nil {
@@ -153,5 +119,6 @@ func createClientConfig(ctx context.Context) (*dtls.Config, error) {
 		ExtendedMasterSecret: dtls.RequireExtendedMasterSecret,
 		RootCAs:              certPool,
 		InsecureSkipVerify:   false,
+		MTU:                  common.MTU,
 	}, nil
 }

@@ -22,6 +22,11 @@ var CERT_NAME = "certs/server_cert.pem"
 var KEY_NAME = "certs/server_key.pem"
 var ROOT_CA = "certs/root_ca_cert.pem"
 
+// RSA certificates
+// var CERT_NAME = "certs/rsa/server.crt"
+// var KEY_NAME = "certs/rsa/server.key"
+// var ROOT_CA = "certs/rsa/myCA.crt"
+
 type HandlerFunc func(conn *dtls.Conn, req *pool.Message)
 
 type Router struct {
@@ -66,8 +71,6 @@ func main() {
 	}
 	defer serialConn.Close()
 
-	// flushSerialBuffer(serialConn)
-
 	log.Println("Serial port opened successfully")
 
 	config, err := createServerConfig(context.Background())
@@ -99,7 +102,7 @@ func main() {
 			log.Fatalf("Error reading from DTLS connection: %v", err)
 		}
 
-		log.Printf("Received %d bytes: %x", n, buf[:n])
+		log.Printf("Server: received %d bytes: %x", n, buf[:n])
 
 		// Decode the incoming CoAP message
 		req := pool.NewMessage(context.Background())
@@ -142,17 +145,6 @@ func handleRequest(conn *dtls.Conn, req *pool.Message) {
 	}
 }
 
-func flushSerialBuffer(port *serial.Port) {
-	buf := make([]byte, 128)
-	for {
-		n, err := port.Read(buf)
-		if err != nil || n == 0 {
-			break // Stop when no more data is available
-		}
-		log.Printf("Flushed %d bytes", n) // Log how much was flushed
-	}
-}
-
 func createServerConfig(ctx context.Context) (*dtls.Config, error) {
 	certificate, err := tls.LoadX509KeyPair(CERT_NAME, KEY_NAME)
 	if err != nil {
@@ -175,5 +167,6 @@ func createServerConfig(ctx context.Context) (*dtls.Config, error) {
 		ConnectContextMaker: func() (context.Context, func()) {
 			return context.WithTimeout(ctx, 30*time.Second)
 		},
+		MTU: common.MTU,
 	}, nil
 }
